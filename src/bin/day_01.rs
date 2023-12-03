@@ -5,7 +5,7 @@ use std::fs;
 
 fn main() {
     env_logger::init();
-    println!("Hello, world!");
+    aoc2023::hello();
 
     let args = env::args().collect::<Vec<String>>();
 
