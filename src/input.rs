@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, info};
 use std::fs;
 
 pub struct Args {
@@ -8,12 +8,18 @@ pub struct Args {
 
 impl Args {
     pub fn parse() -> Result<Self, pico_args::Error> {
+        let day = std::env::args().next().unwrap_or_default();
+
         let mut pargs = pico_args::Arguments::from_env();
 
         let args = Self {
             part_two: pargs.contains("-2"),
             input_path: pargs.free_from_str()?,
         };
+
+        let part_num = if args.part_two { 2 } else { 1 };
+        info!("Running {}, part {}", day, part_num);
+        info!("Input path is {}", args.input_path.display());
 
         Ok(args)
     }

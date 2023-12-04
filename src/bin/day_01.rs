@@ -1,4 +1,4 @@
-use log::info;
+use log::debug;
 use regex::Regex;
 
 aoc2023::solver!(part1, part2);
@@ -51,7 +51,7 @@ fn part2(lines: &[String]) -> String {
         let first_digit = digits.first().unwrap();
         let second_digit = digits.last().unwrap();
 
-        info!("{}{}", first_digit, second_digit);
+        debug!("{}{}", first_digit, second_digit);
 
         total += (10 * first_digit) + second_digit;
     }
