@@ -17,7 +17,7 @@ fn main() {
     };
 }
 
-fn part1(lines: &Vec<String>) {
+fn part1(lines: &[String]) {
     let re_first = Regex::new(r"^[^\d]*(\d)").unwrap();
     let re_last = Regex::new(r".*(\d)[^\d]*$").unwrap();
 
@@ -35,7 +35,7 @@ fn part1(lines: &Vec<String>) {
     println!("{}", total);
 }
 
-fn part2(lines: &Vec<String>) {
+fn part2(lines: &[String]) {
     let re = Regex::new(r"(\d|one|two|three|four|five|six|seven|eight|nine|zero)").unwrap();
 
     let mut total = 0;
