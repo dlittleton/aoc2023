@@ -1,6 +1,6 @@
 use aoc2023::util::get_first_number;
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 #[derive(Default, Debug)]
 struct Round {
@@ -30,6 +30,29 @@ fn part1(lines: &[String]) -> String {
         if !invalid {
             total += game_number
         }
+    }
+
+    format!("{}", total)
+}
+
+fn part2(lines: &[String]) -> String {
+    let mut total = 0;
+
+    for line in lines {
+        let (_, spec) = line.split_once(":").unwrap();
+
+        let rounds = spec.split(';');
+        let mut max_round = Round::default();
+
+        for r in rounds {
+            let round = parse_round(r);
+            max_round.red = std::cmp::max(max_round.red, round.red);
+            max_round.green = std::cmp::max(max_round.green, round.green);
+            max_round.blue = std::cmp::max(max_round.blue, round.blue);
+        }
+
+        let power = max_round.red * max_round.blue * max_round.green;
+        total += power
     }
 
     format!("{}", total)
