@@ -2,22 +2,10 @@ use log::info;
 use regex::Regex;
 
 fn main() {
-    env_logger::init();
-
-    let args = match aoc2023::input::Args::parse() {
-        Ok(v) => v,
-        Err(e) => panic!("Failed to parse args {}", e),
-    };
-
-    let lines = args.read_input_file();
-    if !args.part_two {
-        part1(&lines)
-    } else {
-        part2(&lines)
-    };
+    aoc2023::solver::run(part1, part2);
 }
 
-fn part1(lines: &[String]) {
+fn part1(lines: &[String]) -> String {
     let re_first = Regex::new(r"^[^\d]*(\d)").unwrap();
     let re_last = Regex::new(r".*(\d)[^\d]*$").unwrap();
 
@@ -32,10 +20,10 @@ fn part1(lines: &[String]) {
         total += numeric;
     }
 
-    println!("{}", total);
+    format!("{}", total)
 }
 
-fn part2(lines: &[String]) {
+fn part2(lines: &[String]) -> String {
     let re = Regex::new(r"(\d|one|two|three|four|five|six|seven|eight|nine|zero)").unwrap();
 
     let mut total = 0;
@@ -70,5 +58,5 @@ fn part2(lines: &[String]) {
         total += (10 * first_digit) + second_digit;
     }
 
-    println!("{}", total);
+    format!("{}", total)
 }
