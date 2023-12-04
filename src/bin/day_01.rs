@@ -1,9 +1,7 @@
 use log::info;
 use regex::Regex;
 
-fn main() {
-    aoc2023::solver::run(part1, part2);
-}
+aoc2023::solver!(part1, part2);
 
 fn part1(lines: &[String]) -> String {
     let re_first = Regex::new(r"^[^\d]*(\d)").unwrap();
