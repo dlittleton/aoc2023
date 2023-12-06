@@ -5,9 +5,9 @@ aoc2023::solver!(part1);
 
 #[derive(Debug)]
 struct RangeMapping {
-    source: i32,
-    dest: i32,
-    count: i32,
+    source: u64,
+    dest: u64,
+    count: u64,
 }
 
 fn part1(lines: &[String]) -> String {
@@ -26,7 +26,7 @@ fn part1(lines: &[String]) -> String {
     format!("{}", min)
 }
 
-fn apply_mapping<'a, T>(values: &[i32], lines: &mut T) -> Vec<i32>
+fn apply_mapping<'a, T>(values: &[u64], lines: &mut T) -> Vec<u64>
 where
     T: Iterator<Item = &'a String>,
 {
