@@ -21,7 +21,7 @@ fn part2(lines: &[String]) -> String {
     let mut counts: Vec<_> = lines.iter().map(|_| 1).collect();
     for line in lines {
         let (card, values) = line.split_once(':').unwrap();
-        let card_num = get_first_number(card) as usize;
+        let card_num: usize = get_first_number(card);
         let count = count_winning_numbers(values) as usize;
 
         let copies = counts[card_num - 1];

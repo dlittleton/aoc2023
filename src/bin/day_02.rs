@@ -19,7 +19,7 @@ fn part1(lines: &[String]) -> String {
     for line in lines {
         let (game, spec) = line.split_once(":").unwrap();
 
-        let game_number = get_first_number(game);
+        let game_number: i32 = get_first_number(game);
 
         let mut rounds = spec.split(';');
         let invalid = rounds.any(|r| {
