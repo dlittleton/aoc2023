@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, ops::Range};
 
 use aoc2023::util::get_all_numbers;
 use log::info;
@@ -30,6 +30,73 @@ impl MappingGroup {
         }
 
         return value;
+    }
+
+    fn apply_range(&self, values: &mut Vec<Range<u64>>) -> Vec<Range<u64>> {
+        let mut result = Vec::new();
+
+        while let Some(v) = values.pop() {
+            let mut matched = false;
+
+            for r in self.mappings.iter() {
+                let range_end = r.source + r.count;
+
+                if v.end < r.source || v.start > range_end {
+                    // No overlap
+                    continue;
+                }
+
+                if v.start >= r.source && v.end <= range_end {
+                    // Range is fully mapped
+                    matched = true;
+                    let offset = v.start - r.source;
+                    let length = v.end - v.start;
+
+                    result.push(r.dest + offset..r.dest + offset + length);
+                    break;
+                }
+
+                if v.start < r.source && v.end > range_end {
+                    // Value spans entire range
+                    matched = true;
+                    result.push(r.dest..r.dest + r.count);
+
+                    let leading_len = r.source - v.start;
+
+                    values.push(v.start..v.start + leading_len);
+                    values.push(range_end..v.end);
+                    break;
+                }
+
+                if v.start < r.source && v.end > r.source {
+                    // Beginning overlaps
+                    matched = true;
+
+                    let mapped_len = v.end - r.source;
+                    result.push(r.dest..r.dest + mapped_len);
+
+                    let leading_len = r.source - v.start;
+                    values.push(v.start..v.start + leading_len);
+                    break;
+                }
+
+                if v.end > range_end && v.start < range_end {
+                    matched = true;
+                    let offset = v.start - r.source;
+                    let mapped_len = range_end - v.start;
+
+                    result.push(r.dest + offset..r.dest + offset + mapped_len);
+                    values.push(range_end..v.end);
+                    break;
+                }
+            }
+
+            if !matched {
+                result.push(v);
+            }
+        }
+
+        result
     }
 }
 
@@ -71,18 +138,11 @@ fn part2(lines: &[String]) -> String {
         ranges.push(start..start + count);
     }
 
-    let min = ranges
-        .iter()
-        .flat_map(|m| m.clone().into_iter())
-        .map(|v| {
-            let mut mapped_value = v;
-            for group in &mappings[..] {
-                mapped_value = group.apply(mapped_value);
-            }
-            mapped_value
-        })
-        .min()
-        .unwrap();
+    for group in mappings {
+        ranges = group.apply_range(&mut ranges);
+    }
+
+    let min = ranges.iter().map(|r| r.start).min().unwrap();
 
     format!("{}", min)
 }
@@ -125,4 +185,99 @@ fn parse_mapping(line: &str) -> Option<RangeMapping> {
         }),
         _ => None,
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_group() -> Vec<MappingGroup> {
+        let lines = &vec!["header", "10 75 25", "200 100 25", "1000 2000 100"];
+        let temp: Vec<_> = lines.iter().map(|l| l.to_string()).collect();
+        build_mappings(&mut temp.iter())
+    }
+
+    #[test]
+    fn test_parse_mapping() {
+        let parsed = parse_mapping("50 92 2").unwrap();
+        assert_eq!(parsed.dest, 50);
+        assert_eq!(parsed.source, 92);
+        assert_eq!(parsed.count, 2);
+    }
+
+    #[test]
+    fn test_apply() {
+        let group = create_test_group();
+        assert_eq!(34, group[0].apply(99));
+        assert_eq!(200, group[0].apply(100));
+        assert_eq!(300, group[0].apply(300));
+    }
+
+    #[test]
+    fn test_apply_range_unmapped() {
+        let group = create_test_group();
+
+        let mut values = vec![0..10];
+        let result = group[0].apply_range(&mut values);
+
+        assert_eq!(1, result.len());
+        assert_eq!(0..10, result[0]);
+    }
+
+    #[test]
+    fn test_apply_range_left() {
+        let group = create_test_group();
+
+        let mut values = vec![0..10, 65..85];
+        let mut result = group[0].apply_range(&mut values);
+        result.sort_by(|l, r| l.start.cmp(&r.start));
+
+        assert_eq!(3, result.len());
+        assert_eq!(0..10, result[0]);
+        assert_eq!(10..20, result[1]); // Mapped value
+        assert_eq!(65..75, result[2]); // Unmapped portion
+    }
+
+    #[test]
+    fn test_apply_range_right() {
+        let group = create_test_group();
+
+        let mut values = vec![0..10, 115..135];
+        let mut result = group[0].apply_range(&mut values);
+        result.sort_by(|l, r| l.start.cmp(&r.start));
+
+        assert_eq!(3, result.len());
+        assert_eq!(0..10, result[0]);
+        assert_eq!(125..135, result[1]); // Mapped value
+        assert_eq!(215..225, result[2]); // Unmapped portion
+    }
+
+    #[test]
+    fn test_apply_range_value_contained_in_range() {
+        let group = create_test_group();
+
+        let mut values = vec![85..95];
+        let result = group[0].apply_range(&mut values);
+
+        assert_eq!(1, result.len());
+        assert_eq!(20..30, result[0]);
+    }
+
+    #[test]
+    fn test_apply_range_range_contained_in_value() {
+        let group = create_test_group();
+
+        let mut values = vec![0..10, 1990..2110];
+        let mut result = group[0].apply_range(&mut values);
+        result.sort_by(|l, r| l.start.cmp(&r.start));
+
+        assert_eq!(4, result.len());
+        assert_eq!(0..10, result[0]);
+        assert_eq!(1000..1100, result[1]); // Mapped value
+        assert_eq!(1990..2000, result[2]); // Leading portion
+        assert_eq!(2100..2110, result[3]); // Trailing portion
+    }
+
+    #[test]
+    fn test_apply_range_none() {}
 }
