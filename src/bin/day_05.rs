@@ -277,7 +277,4 @@ mod tests {
         assert_eq!(1990..2000, result[2]); // Leading portion
         assert_eq!(2100..2110, result[3]); // Trailing portion
     }
-
-    #[test]
-    fn test_apply_range_none() {}
 }
