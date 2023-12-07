@@ -1,7 +1,9 @@
+use std::collections::VecDeque;
+
 use aoc2023::util::get_all_numbers;
 use log::info;
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 #[derive(Debug)]
 struct RangeMapping {
@@ -10,49 +12,107 @@ struct RangeMapping {
     count: u64,
 }
 
+#[derive(Debug)]
+struct MappingGroup {
+    mappings: Vec<RangeMapping>,
+}
+
+impl MappingGroup {
+    fn apply(&self, value: u64) -> u64 {
+        for r in self.mappings.iter() {
+            if (r.source..r.source + r.count).contains(&value) {
+                let diff = value - r.source;
+                let new_value = r.dest + diff;
+
+                info!("Mapping {} to {}", value, new_value);
+                return new_value;
+            }
+        }
+
+        return value;
+    }
+}
+
 fn part1(lines: &[String]) -> String {
-    let mut mappings = lines.iter().peekable();
-    let mut values = get_all_numbers(mappings.next().unwrap());
+    let mut input = lines.iter();
+    let values: Vec<u64> = get_all_numbers(input.next().unwrap());
 
     // Discard empty line
-    mappings.next();
+    input.next();
 
-    while mappings.peek().is_some() {
-        values = apply_mapping(&values, &mut mappings);
-        info!("Values is now {:?}", values)
-    }
+    let mappings = build_mappings(&mut input);
 
-    let min = values.iter().min().unwrap();
+    let min = values
+        .iter()
+        .map(|v| {
+            let mut mapped_value = *v;
+            for group in &mappings[..] {
+                mapped_value = group.apply(mapped_value);
+            }
+            mapped_value
+        })
+        .min()
+        .unwrap();
+
     format!("{}", min)
 }
 
-fn apply_mapping<'a, T>(values: &[u64], lines: &mut T) -> Vec<u64>
+fn part2(lines: &[String]) -> String {
+    let mut input = lines.iter();
+    let mut values: VecDeque<u64> = VecDeque::from(get_all_numbers(input.next().unwrap()));
+
+    // Discard empty line
+    input.next();
+
+    let mappings = build_mappings(&mut input);
+
+    let mut ranges: Vec<_> = Vec::new();
+    while let (Some(start), Some(count)) = (values.pop_front(), values.pop_front()) {
+        ranges.push(start..start + count);
+    }
+
+    let min = ranges
+        .iter()
+        .flat_map(|m| m.clone().into_iter())
+        .map(|v| {
+            let mut mapped_value = v;
+            for group in &mappings[..] {
+                mapped_value = group.apply(mapped_value);
+            }
+            mapped_value
+        })
+        .min()
+        .unwrap();
+
+    format!("{}", min)
+}
+
+fn build_mappings<'a, T>(lines: &mut T) -> Vec<MappingGroup>
 where
     T: Iterator<Item = &'a String>,
 {
-    let ranges: Vec<_> = lines
+    let mut peekable_lines = lines.peekable();
+    let mut result = Vec::new();
+
+    while peekable_lines.peek().is_some() {
+        result.push(MappingGroup {
+            mappings: parse_mapping_group(&mut peekable_lines),
+        })
+    }
+
+    result
+}
+
+fn parse_mapping_group<'a, T>(lines: &mut T) -> Vec<RangeMapping>
+where
+    T: Iterator<Item = &'a String>,
+{
+    lines
         .into_iter()
         .skip(1)
         .map(|line| parse_mapping(line))
         .take_while(|m| m.is_some())
         .flatten()
-        .collect();
-
-    values
-        .into_iter()
-        .map(|v| {
-            for r in &ranges[..] {
-                if (r.source..r.source + r.count).contains(v) {
-                    let diff = v - r.source;
-                    let new_value = r.dest + diff;
-
-                    info!("Mapping {} to {}", v, new_value);
-                    return new_value;
-                }
-            }
-
-            *v
-        })
         .collect()
 }
 
