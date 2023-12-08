@@ -3,9 +3,10 @@ use std::{collections::HashMap, iter};
 use aoc2023::util::get_first_number;
 use log::{info, log_enabled};
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
-const CARD_RANKS: &str = "23456789TJQKA";
+const NORMAL_RANKS: &str = "23456789TJQKA";
+const WILD_RANKS: &str = "J23456789TQKA";
 
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
 enum HandKind {
@@ -26,12 +27,18 @@ struct Hand {
 }
 
 impl Hand {
-    fn parse(line: &String) -> Self {
+    fn parse(line: &String, jokers_wild: bool) -> Self {
         let (cards_str, bid_str) = line.split_once(' ').unwrap();
 
         let cards: Vec<_> = cards_str.chars().collect();
-        let counts = count_cards(cards_str);
+        let mut counts = count_cards(cards_str);
         let bid = get_first_number(bid_str);
+
+        if jokers_wild && counts.len() > 1 {
+            if let Some(jcount) = counts.remove(&'J') {
+                *counts.values_mut().max().unwrap() += jcount;
+            }
+        }
 
         let mut ranks: Vec<_> = counts
             .into_values()
@@ -54,12 +61,8 @@ impl Hand {
         Hand { bid, cards, kind }
     }
 
-    fn key_by_hand_order(&self) -> (HandKind, usize, usize, usize, usize, usize) {
-        let values: Vec<_> = self
-            .cards
-            .iter()
-            .map(|c| CARD_RANKS.find(*c).unwrap())
-            .collect();
+    fn key_by_hand_order(&self, ranks: &str) -> (HandKind, usize, usize, usize, usize, usize) {
+        let values: Vec<_> = self.cards.iter().map(|c| ranks.find(*c).unwrap()).collect();
 
         (
             self.kind, values[0], values[1], values[2], values[3], values[4],
@@ -82,8 +85,22 @@ fn count_cards(cards: &str) -> HashMap<char, i32> {
 }
 
 fn part1(lines: &[String]) -> String {
-    let mut hands: Vec<_> = lines.iter().map(|l| Hand::parse(l)).collect();
-    hands.sort_by_key(|h| h.key_by_hand_order());
+    let mut hands: Vec<_> = lines.iter().map(|l| Hand::parse(l, false)).collect();
+    hands.sort_by_key(|h| h.key_by_hand_order(NORMAL_RANKS));
+
+    if log_enabled!(log::Level::Info) {
+        for h in &hands[..] {
+            info!("{:?}", h);
+        }
+    }
+
+    let score = score_hands(&hands);
+    format!("{}", score)
+}
+
+fn part2(lines: &[String]) -> String {
+    let mut hands: Vec<_> = lines.iter().map(|l| Hand::parse(l, true)).collect();
+    hands.sort_by_key(|h| h.key_by_hand_order(WILD_RANKS));
 
     if log_enabled!(log::Level::Info) {
         for h in &hands[..] {
