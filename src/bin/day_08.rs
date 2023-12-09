@@ -75,7 +75,7 @@ fn part2(lines: &[String]) -> String {
     let mut positions: Vec<_> = map.keys().filter(|k| k.ends_with("A")).collect();
     info!("{:?}", positions);
 
-    // Find the first 10 solutions for each
+    // Vector to hold solutions for each position.
     let mut solutions: Vec<Vec<i32>> = positions.iter().map(|_| Vec::new()).collect();
 
     for dir in path {
