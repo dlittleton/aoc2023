@@ -29,3 +29,8 @@ where
         .map(|s| s.as_str().parse::<T>().unwrap())
         .collect()
 }
+
+pub fn extract_all_matches(pattern: &str, s: &str) -> Vec<String> {
+    let re = Regex::new(pattern).unwrap_or_else(|_| panic!("Bad Pattern: {}", pattern));
+    return re.find_iter(s).map(|m| m.as_str().to_string()).collect();
+}
