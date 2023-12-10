@@ -37,6 +37,7 @@ fn part2(lines: &[String]) -> String {
         .enumerate()
         .map(|(i, v)| v.iter().enumerate().map(move |(j, c)| (i, j, *c)))
         .flatten()
+        // Don't count rows/columns introduced by expansion.
         .filter(|(i, j, c)| i % 2 == 0 && j % 2 == 0 && *c == '.')
         .count();
 
