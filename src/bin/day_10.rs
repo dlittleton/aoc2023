@@ -1,20 +1,66 @@
 use std::collections::HashMap;
 
-use log::debug;
+use log::{debug, info, log_enabled};
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 struct Point(usize, usize);
 type Grid = Vec<Vec<char>>;
+type PointMap = HashMap<Point, usize>;
 
 fn part1(lines: &[String]) -> String {
     let grid = parse_grid(lines);
     debug!("{:?}", grid);
 
-    let furthest = get_furthest_position(&grid);
+    let furthest = *get_path(&grid).values().max().unwrap();
 
     format!("{}", furthest)
+}
+
+fn part2(lines: &[String]) -> String {
+    let mut grid = parse_grid(lines);
+    debug!("{:?}", grid);
+
+    let path = get_path(&grid);
+    clear_grid(&mut grid, &path);
+    dump_grid(&grid);
+
+    let mut expanded = expand_grid(&grid);
+    dump_grid(&expanded);
+
+    fill(&mut expanded);
+    dump_grid(&expanded);
+
+    let count = expanded
+        .iter()
+        .enumerate()
+        .map(|(i, v)| v.iter().enumerate().map(move |(j, c)| (i, j, *c)))
+        .flatten()
+        .filter(|(i, j, c)| i % 2 == 0 && j % 2 == 0 && *c == '.')
+        .count();
+
+    format!("{}", count)
+}
+
+fn clear_grid(grid: &mut Grid, path: &PointMap) {
+    for i in 0..grid.len() {
+        for j in 0..grid[i].len() {
+            let position = Point(i, j);
+            if !path.contains_key(&position) {
+                grid[i][j] = '.'
+            }
+        }
+    }
+}
+
+fn dump_grid(grid: &Grid) {
+    if log_enabled!(log::Level::Info) {
+        for i in 0..grid.len() {
+            let output: String = grid[i].iter().collect();
+            info!("{}", output);
+        }
+    }
 }
 
 fn parse_grid(lines: &[String]) -> Grid {
@@ -33,7 +79,7 @@ fn get_start_position(grid: &Grid) -> Point {
     panic!("Start position not found!");
 }
 
-fn get_start_neighboars(start: &Point, grid: &Grid) -> Vec<Point> {
+fn get_start_neighbors(start: &Point, grid: &Grid) -> Vec<Point> {
     let mut neighbors: Vec<_> = Vec::new();
 
     // Up
@@ -115,12 +161,13 @@ fn get_next_position(previous: &Point, current: &Point, grid: &Grid) -> Point {
         .unwrap()
 }
 
-fn get_furthest_position(grid: &Grid) -> usize {
+fn get_path(grid: &Grid) -> HashMap<Point, usize> {
     let start = get_start_position(&grid);
 
     let mut distances: HashMap<Point, usize> = HashMap::new();
+    distances.insert(start, 0);
 
-    let neighbors = get_start_neighboars(&start, grid);
+    let neighbors = get_start_neighbors(&start, grid);
     if neighbors.len() != 2 {
         panic!("Unexpected neighbor count {:?}", neighbors);
     }
@@ -147,5 +194,84 @@ fn get_furthest_position(grid: &Grid) -> usize {
         steps += 1;
     }
 
-    *distances.values().max().unwrap()
+    distances
+}
+
+/// Expand that paths so that spaces between pipes correspond to coordinates
+fn expand_grid(grid: &Grid) -> Grid {
+    let mut result: Grid = Grid::new();
+    for i in 0..grid.len() {
+        let mut row: Vec<_> = Vec::new();
+        for j in 0..grid[0].len() {
+            let current = grid[i][j];
+            if j > 0 {
+                let prev = grid[i][j - 1];
+
+                if "SFL-".contains(prev) && "SJ7-".contains(current) {
+                    row.push('-')
+                } else {
+                    row.push('.')
+                }
+            }
+            row.push(current)
+        }
+
+        if i > 0 {
+            let prev = result.last().unwrap();
+
+            let spacer: Vec<_> = prev
+                .iter()
+                .zip(row.iter())
+                .map(|(p, c)| {
+                    if "SF7|".contains(*p) && "SLJ|".contains(*c) {
+                        '|'
+                    } else {
+                        '.'
+                    }
+                })
+                .collect();
+
+            result.push(spacer)
+        }
+
+        result.push(row);
+    }
+
+    result
+}
+
+fn fill(grid: &mut Grid) {
+    let mut to_visit: Vec<Point> = Vec::new();
+
+    for i in 0..grid.len() {
+        to_visit.push(Point(i, 0));
+        to_visit.push(Point(i, grid[0].len() - 1));
+    }
+
+    for j in 0..grid[0].len() {
+        to_visit.push(Point(0, j));
+        to_visit.push(Point(grid.len() - 1, j));
+    }
+
+    while !to_visit.is_empty() {
+        let pos = to_visit.pop().unwrap();
+
+        if pos.0 >= grid.len() || pos.1 >= grid[0].len() {
+            continue;
+        }
+
+        if grid[pos.0][pos.1] == '.' {
+            grid[pos.0][pos.1] = 'O';
+
+            if pos.0 > 0 {
+                to_visit.push(Point(pos.0 - 1, pos.1));
+            }
+            if pos.1 > 0 {
+                to_visit.push(Point(pos.0, pos.1 - 1));
+            }
+            to_visit.push(Point(pos.0 + 1, pos.1));
+
+            to_visit.push(Point(pos.0, pos.1 + 1));
+        }
+    }
 }
