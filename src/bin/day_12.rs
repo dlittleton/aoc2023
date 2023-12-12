@@ -1,11 +1,16 @@
-use log::debug;
+use log::{debug, info};
 
 use aoc2023::util::get_all_numbers;
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 fn part1(lines: &[String]) -> String {
     let total: usize = lines.iter().map(|line| count_variations(line)).sum();
+    format!("{}", total)
+}
+
+fn part2(lines: &[String]) -> String {
+    let total: usize = lines.iter().map(|line| count_folded_variations(line)).sum();
     format!("{}", total)
 }
 
@@ -13,6 +18,29 @@ fn count_variations(line: &String) -> usize {
     let (spec, values) = line.split_once(' ').unwrap();
     let runs: Vec<_> = get_all_numbers(values);
     let springs: Vec<_> = spec.chars().collect();
+
+    let state = State::new(&springs, &runs);
+    let count = state.count_successors();
+
+    info!("Count {}", count);
+    count
+}
+
+fn count_folded_variations(line: &String) -> usize {
+    let (spec, values) = line.split_once(' ').unwrap();
+
+    let unfolded_spec = std::iter::repeat(spec)
+        .take(5)
+        .collect::<Vec<&str>>()
+        .join("?");
+
+    let unfolded_values = std::iter::repeat(values)
+        .take(5)
+        .collect::<Vec<&str>>()
+        .join(",");
+
+    let runs: Vec<_> = get_all_numbers(&unfolded_values);
+    let springs: Vec<_> = unfolded_spec.chars().collect();
 
     let state = State::new(&springs, &runs);
     state.count_successors()
