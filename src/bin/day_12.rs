@@ -1,12 +1,6 @@
-use lazy_static::lazy_static;
 use log::debug;
-use regex::Regex;
 
 use aoc2023::util::get_all_numbers;
-
-lazy_static! {
-    static ref RE_BROKEN: Regex = Regex::new(r"(#+)").unwrap();
-}
 
 aoc2023::solver!(part1);
 
