@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use log::debug;
 use regex::Regex;
 
 use aoc2023::util::get_all_numbers;
@@ -10,49 +11,105 @@ lazy_static! {
 aoc2023::solver!(part1);
 
 fn part1(lines: &[String]) -> String {
-    let total: usize = lines.iter().map(count_variations).sum();
+    let total: usize = lines.iter().map(|line| count_variations(line)).sum();
     format!("{}", total)
 }
 
 fn count_variations(line: &String) -> usize {
     let (spec, values) = line.split_once(' ').unwrap();
-
-    let counts: Vec<_> = get_all_numbers(values);
-
+    let runs: Vec<_> = get_all_numbers(values);
     let springs: Vec<_> = spec.chars().collect();
-    let valid = permute(&springs).filter(|p| is_valid(p, &counts)).count();
 
-    return valid;
+    let state = State::new(&springs, &runs);
+    state.count_successors()
 }
 
-fn permute(springs: &[char]) -> Box<dyn Iterator<Item = String>> {
-    let mut current: Vec<_> = Vec::new();
-    if let [head, tail @ ..] = springs {
-        if *head == '?' {
-            current.push("#".to_string());
-            current.push(".".to_string());
-        } else {
-            current.push(format!("{}", head))
-        }
+#[derive(Debug)]
+struct State<'a> {
+    current_run: usize,
+    current_spring: char,
+    remaining: &'a [char],
+    runs: &'a [usize],
+}
 
-        if !tail.is_empty() {
-            let children = permute(tail);
-            let temp = children
-                .flat_map(move |child| {
-                    current
-                        .clone()
-                        .into_iter()
-                        .map(move |cur| format!("{}{}", cur, child))
-                })
-                .into_iter();
-            return Box::new(temp);
+impl<'a> State<'a> {
+    fn new(springs: &'a [char], runs: &'a [usize]) -> Self {
+        Self {
+            current_run: 0,
+            current_spring: '.',
+            remaining: springs,
+            runs,
         }
     }
 
-    Box::new(current.into_iter())
-}
+    fn is_valid(&self) -> bool {
+        if self.current_spring == '#' {
+            // An on-going run is only valid if it will be shorter than the next expected run.
+            if self.runs.is_empty() {
+                return false;
+            } else {
+                return self.current_run + 1 <= self.runs[0];
+            }
+        } else if self.current_run > 0 {
+            // A run that is stopping must exactly match the next expected run.
+            return self.current_run == self.runs[0];
+        } else {
+            // Empty run, still valid
+            return true;
+        }
+    }
 
-fn is_valid(permutation: &String, counts: &[usize]) -> bool {
-    let actual: Vec<_> = RE_BROKEN.find_iter(permutation).map(|m| m.len()).collect();
-    actual == counts
+    fn child(&self, next_spring: char) -> Self {
+        let mut child_run = self.current_run + 1;
+        let mut child_remaining_runs = self.runs;
+
+        if self.current_spring == '.' {
+            child_run = 0;
+
+            if self.current_run > 0 {
+                child_remaining_runs = &self.runs[1..];
+            }
+        }
+
+        Self {
+            current_run: child_run,
+            current_spring: next_spring,
+            remaining: &self.remaining[1..],
+            runs: child_remaining_runs,
+        }
+    }
+
+    fn complete(&self) -> usize {
+        let valid = (self.current_run == 0 && self.runs.is_empty())
+            || (self.current_spring == '.'
+                && self.current_run > 0
+                && self.runs.len() == 1
+                && self.current_run == self.runs[0])
+            || (self.current_spring == '#'
+                && self.runs.len() == 1
+                && self.current_run + 1 == self.runs[0]);
+
+        debug!("{:?}", self);
+        debug!("Valid {}", valid);
+
+        if valid {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn count_successors(&self) -> usize {
+        if !self.is_valid() {
+            return 0;
+        }
+
+        match self.remaining {
+            [] => self.complete(),
+            ['?', _tail @ ..] => {
+                self.child('#').count_successors() + self.child('.').count_successors()
+            }
+            [x, _tail @ ..] => self.child(*x).count_successors(),
+        }
+    }
 }
