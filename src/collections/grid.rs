@@ -49,6 +49,37 @@ impl<T> Grid<T> {
     pub fn col_wise_iter(&self) -> impl Iterator<Item = impl Iterator<Item = &T>> {
         (0..self.cols()).map(move |c| (0..self.rows()).map(move |r| self.get(r, c)))
     }
+
+    pub fn insert_row_at(&mut self, i: usize, values: impl IntoIterator<Item = T>) {
+        let new_row: Vec<_> = values.into_iter().take(self.cols()).collect();
+
+        if new_row.len() != self.cols() {
+            panic!(
+                "Not enough elements. Expected {}, Found {}",
+                self.cols(),
+                new_row.len()
+            )
+        }
+
+        self.values.insert(i, new_row);
+    }
+
+    pub fn insert_col_at(&mut self, i: usize, values: impl IntoIterator<Item = T>) {
+        let mut new_col: Vec<_> = values.into_iter().take(self.rows()).collect();
+
+        if new_col.len() != self.rows() {
+            panic!(
+                "Not enough elements. Expected {}, Found {}",
+                self.rows(),
+                new_col.len()
+            )
+        }
+
+        self.values
+            .iter_mut()
+            .rev()
+            .for_each(|v| v.insert(i, new_col.pop().unwrap()));
+    }
 }
 
 #[cfg(test)]
@@ -120,5 +151,21 @@ mod tests {
         let col: Vec<_> = grid.col_wise_iter().next().unwrap().map(|c| *c).collect();
 
         assert_eq!(col, vec!['a', 'd', 'g', 'j']);
+    }
+
+    #[test]
+    fn test_insert_row_at() {
+        let mut grid = create_test_grid();
+        grid.insert_row_at(1, "123".chars());
+
+        assert_eq!(*grid.get(1, 0), '1');
+    }
+
+    #[test]
+    fn test_insert_col_at() {
+        let mut grid = create_test_grid();
+        grid.insert_col_at(1, "1234".chars());
+
+        assert_eq!(*grid.get(0, 1), '1');
     }
 }
