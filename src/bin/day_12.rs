@@ -1,6 +1,7 @@
-use log::{debug, info};
+use std::collections::HashMap;
 
 use aoc2023::util::get_all_numbers;
+use log::{debug, info};
 
 aoc2023::solver!(part1, part2);
 
@@ -19,11 +20,8 @@ fn count_variations(line: &String) -> usize {
     let runs: Vec<_> = get_all_numbers(values);
     let springs: Vec<_> = spec.chars().collect();
 
-    let state = State::new(&springs, &runs);
-    let count = state.count_successors();
-
-    info!("Count {}", count);
-    count
+    let mut inspector = SpringInspector::new(springs, runs);
+    inspector.count_permutations()
 }
 
 fn count_folded_variations(line: &String) -> usize {
@@ -42,96 +40,117 @@ fn count_folded_variations(line: &String) -> usize {
     let runs: Vec<_> = get_all_numbers(&unfolded_values);
     let springs: Vec<_> = unfolded_spec.chars().collect();
 
-    let state = State::new(&springs, &runs);
-    state.count_successors()
+    let mut inspector = SpringInspector::new(springs, runs);
+    inspector.count_permutations()
 }
 
-#[derive(Debug)]
-struct State<'a> {
-    current_run: usize,
-    current_spring: char,
-    remaining: &'a [char],
-    runs: &'a [usize],
+struct SpringInspector {
+    springs: Vec<char>,
+    runs: Vec<usize>,
+    cache: HashMap<State, usize>,
+    cache_hits: usize,
 }
 
-impl<'a> State<'a> {
-    fn new(springs: &'a [char], runs: &'a [usize]) -> Self {
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct State {
+    pos: usize,
+    run: usize,
+    run_idx: usize,
+}
+
+impl SpringInspector {
+    fn new(springs: Vec<char>, runs: Vec<usize>) -> Self {
         Self {
-            current_run: 0,
-            current_spring: '.',
-            remaining: springs,
+            springs,
             runs,
+            cache: HashMap::new(),
+            cache_hits: 0,
         }
     }
 
-    fn is_valid(&self) -> bool {
-        if self.current_spring == '#' {
-            // An on-going run is only valid if it will be shorter than the next expected run.
-            if self.runs.is_empty() {
-                return false;
+    fn count_permutations(&mut self) -> usize {
+        let init = State {
+            pos: 0,
+            run: 0,
+            run_idx: 0,
+        };
+
+        let total = self.successors(init);
+        info!("Total was {}. Cache hits {}", total, self.cache_hits);
+        return total;
+    }
+
+    fn successors(&mut self, state: State) -> usize {
+        if let Some(cached) = self.cache.get(&state) {
+            debug!("Using cached result for {:?} -- {}", state, cached);
+            self.cache_hits += 1;
+            return *cached;
+        }
+
+        let mut result = 0;
+
+        if state.pos == self.springs.len() {
+            // Reached the end. Only valid if either there's no active run and
+            // no runs remaining or the active run matches the last remaining
+            // run to check.
+            let remaining = self.runs.len() - state.run_idx;
+
+            if (state.run == 0 && remaining == 0)
+                || (remaining == 1 && state.run == self.runs[state.run_idx])
+            {
+                return 1;
             } else {
-                return self.current_run + 1 <= self.runs[0];
-            }
-        } else if self.current_run > 0 {
-            // A run that is stopping must exactly match the next expected run.
-            return self.current_run == self.runs[0];
-        } else {
-            // Empty run, still valid
-            return true;
-        }
-    }
-
-    fn child(&self, next_spring: char) -> Self {
-        let mut child_run = self.current_run + 1;
-        let mut child_remaining_runs = self.runs;
-
-        if self.current_spring == '.' {
-            child_run = 0;
-
-            if self.current_run > 0 {
-                child_remaining_runs = &self.runs[1..];
+                return 0;
             }
         }
 
-        Self {
-            current_run: child_run,
-            current_spring: next_spring,
-            remaining: &self.remaining[1..],
-            runs: child_remaining_runs,
-        }
-    }
+        let current = self.springs[state.pos];
 
-    fn complete(&self) -> usize {
-        let valid = (self.current_run == 0 && self.runs.is_empty())
-            || (self.current_spring == '.'
-                && self.current_run > 0
-                && self.runs.len() == 1
-                && self.current_run == self.runs[0])
-            || (self.current_spring == '#'
-                && self.runs.len() == 1
-                && self.current_run + 1 == self.runs[0]);
+        if current == '#' || current == '?' {
+            let child = State {
+                pos: state.pos + 1,
+                run: state.run + 1,
+                run_idx: state.run_idx,
+            };
 
-        debug!("{:?}", self);
-        debug!("Valid {}", valid);
-
-        if valid {
-            1
-        } else {
-            0
-        }
-    }
-
-    fn count_successors(&self) -> usize {
-        if !self.is_valid() {
-            return 0;
+            result += self.successors(child)
         }
 
-        match self.remaining {
-            [] => self.complete(),
-            ['?', _tail @ ..] => {
-                self.child('#').count_successors() + self.child('.').count_successors()
+        if current == '.' || current == '?' {
+            let child = match (state.run, &self.runs[state.run_idx..]) {
+                (0, _) => {
+                    // No active run, descend with current remaining runs
+                    Some(State {
+                        pos: state.pos + 1,
+                        run: 0,
+                        run_idx: state.run_idx,
+                    })
+                }
+                (_, []) => {
+                    // Active run, but empty remaining matches, no possible solutions.
+                    None
+                }
+                (x, [y, _tail @ ..]) if x != *y => {
+                    // Run ended, length was wrong
+                    None
+                }
+                (x, [y, _tail @ ..]) if x == *y => {
+                    // Run ended, length matches, solution still possible
+                    Some(State {
+                        pos: state.pos + 1,
+                        run: 0,
+                        run_idx: state.run_idx + 1,
+                    })
+                }
+                _ => panic!("Unhandled child state {:?}, {:?}", state, self.runs),
+            };
+
+            if child.is_some() {
+                result += self.successors(child.unwrap());
             }
-            [x, _tail @ ..] => self.child(*x).count_successors(),
         }
+
+        self.cache.insert(state, result);
+        result
     }
 }
