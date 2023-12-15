@@ -17,17 +17,33 @@ fn part1(lines: &[String]) -> String {
 fn part2(lines: &[String]) -> String {
     let mut grid: RockGrid = lines.iter().map(|line| line.chars().collect()).collect();
 
-    //let count = 1000000000;
-    let count = 5000;
-    cycle(&mut grid, count);
+    let results = cycle(&mut grid);
 
-    let total = calculate_load(&grid);
+    // Cycle length is the maximum difference between values.
+    let cycle_length = results.values().map(|v| v[1] - v[0]).max().unwrap();
+    info!("Cycle length is {}", cycle_length);
+
+    // Map offset within cycle to expected load.
+    let mut offsets: HashMap<usize, usize> = HashMap::new();
+    for (k, values) in results {
+        for v in values {
+            offsets.insert(v % cycle_length, k);
+        }
+    }
+
+    // Lookup load based on offset map.
+    let goal = 1000000000;
+    let total = offsets.get(&(goal % cycle_length)).unwrap();
     format!("{}", total)
 }
 
-fn cycle(grid: &mut RockGrid, count: usize) {
+fn cycle(grid: &mut RockGrid) -> HashMap<usize, Vec<usize>> {
+    // Arbitrary cutoff for determining when a cycle has been hit.
+    let target_occurs = 50;
+    let min_occurs = 10;
+
     let mut value_cache: HashMap<usize, Vec<usize>> = HashMap::new();
-    for i in 1..count {
+    for i in 1..1000000000 {
         shift_up(grid);
         shift_left(grid);
         shift_down(grid);
@@ -36,18 +52,19 @@ fn cycle(grid: &mut RockGrid, count: usize) {
         let total = calculate_load(grid);
         if let Some(cached) = value_cache.get_mut(&total) {
             cached.push(i);
-            if cached.len() > 25 {
-                for (k, v) in value_cache.iter() {
-                    if v.len() >= 10 {
-                        println!("{}\t{:?}", k, v);
-                    }
-                }
+            if cached.len() > target_occurs {
+                info!("Detected cycle after {} runs", i);
                 break;
             }
         } else {
             value_cache.insert(total, vec![i]);
         }
     }
+
+    // Get rid of values not in the cycle
+    value_cache.retain(|_, v| v.len() > min_occurs);
+
+    value_cache
 }
 
 fn shift_up(grid: &mut RockGrid) {
@@ -126,13 +143,4 @@ fn calculate_load(grid: &RockGrid) -> usize {
     }
 
     total
-}
-
-fn dump_grid(grid: &RockGrid) {
-    for r in 0..grid.len() {
-        for c in 0..grid[0].len() {
-            print!("{}", grid[r][c]);
-        }
-        println!("");
-    }
 }
