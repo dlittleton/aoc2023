@@ -38,6 +38,13 @@ impl<T> Grid<T> {
             .flat_map(|(i, v)| v.iter().enumerate().map(move |(j, c)| (i, j, c)))
     }
 
+    pub fn enumerate_mut(&mut self) -> impl Iterator<Item = (usize, usize, &mut T)> {
+        self.values
+            .iter_mut()
+            .enumerate()
+            .flat_map(|(i, v)| v.iter_mut().enumerate().map(move |(j, c)| (i, j, c)))
+    }
+
     pub fn rows(&self) -> usize {
         self.values.len()
     }

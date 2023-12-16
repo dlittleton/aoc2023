@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use aoc2023::collections::grid::Grid;
-use log::debug;
+use log::{debug, info};
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 #[derive(Debug)]
 struct Tile {
@@ -11,7 +11,7 @@ struct Tile {
     visit_dirs: HashSet<Direction>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct Position(usize, usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -32,6 +32,47 @@ fn part1(lines: &[String]) -> String {
         .filter(|(_, _, tile)| !tile.visit_dirs.is_empty())
         .count();
     format!("{}", energized)
+}
+
+fn part2(lines: &[String]) -> String {
+    let mut grid = parse_tiles(lines);
+
+    let rows = grid.rows();
+    let cols = grid.cols();
+
+    // Possible starting points.
+    let points = (0..cols)
+        .map(|c| (Position(0, c), Direction::Down))
+        .chain((0..cols).map(|c| (Position(rows - 1, c), Direction::Up)))
+        .chain((0..rows).map(|r| (Position(r, 0), Direction::Right)))
+        .chain((0..rows).map(|r| (Position(r, cols - 1), Direction::Left)));
+
+    let best = points
+        .map(|start| {
+            // Clear previous values
+            grid.enumerate_mut()
+                .for_each(|(_, _, tile)| tile.visit_dirs.clear());
+
+            // Route beam
+            route_beam(start.0, start.1, &mut grid);
+
+            // Calculate score
+            let score = grid
+                .enumerate()
+                .filter(|(_, _, tile)| !tile.visit_dirs.is_empty())
+                .count();
+
+            info!(
+                "Starting at {:?} going {:?} score is {}",
+                start.0, start.1, score
+            );
+
+            return score;
+        })
+        .max()
+        .unwrap();
+
+    format!("{}", best)
 }
 
 fn route_beam(pos: Position, dir: Direction, grid: &mut Grid<Tile>) {
