@@ -27,6 +27,10 @@ impl<T> Grid<T> {
         &self.values[i][j]
     }
 
+    pub fn get_mut(&mut self, i: usize, j: usize) -> &mut T {
+        &mut self.values[i][j]
+    }
+
     pub fn enumerate(&self) -> impl Iterator<Item = (usize, usize, &T)> {
         self.values
             .iter()
