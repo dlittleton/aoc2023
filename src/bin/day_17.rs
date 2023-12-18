@@ -2,14 +2,22 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 use aoc2023::collections::grid::Grid;
-use log::debug;
+use log::{debug, info};
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 fn part1(lines: &[String]) -> String {
     let grid = parse_grid(lines);
 
-    let loss = search(&grid);
+    let loss = search(&grid, 0, 3);
+
+    format!("{}", loss)
+}
+
+fn part2(lines: &[String]) -> String {
+    let grid = parse_grid(lines);
+
+    let loss = search(&grid, 4, 10);
 
     format!("{}", loss)
 }
@@ -51,7 +59,7 @@ impl Ord for Path {
 }
 
 impl Path {
-    fn children(&self, grid: &Grid<usize>) -> Vec<Self> {
+    fn children(&self, grid: &Grid<usize>, min_steps: usize, max_steps: usize) -> Vec<Self> {
         let goal = Position(grid.rows() - 1, grid.cols() - 1);
         let total_heat_loss = grid.get(self.pos.0, self.pos.1) + self.heat_loss;
 
@@ -61,7 +69,11 @@ impl Path {
             Direction::Up | Direction::Down => vec![Direction::Left, Direction::Right],
         };
 
-        if self.steps_without_turn < 3 {
+        if self.steps_without_turn < min_steps {
+            directions.clear(); // Can't turn until min steps
+        }
+
+        if self.steps_without_turn < max_steps {
             directions.push(self.direction);
         }
 
@@ -97,7 +109,7 @@ impl Path {
     }
 }
 
-fn search(grid: &Grid<usize>) -> usize {
+fn search(grid: &Grid<usize>, min_steps: usize, max_steps: usize) -> usize {
     let mut heap = BinaryHeap::new();
     let mut seen: HashMap<PathState, usize> = HashMap::new();
     let goal = Position(grid.rows() - 1, grid.cols() - 1);
@@ -139,10 +151,15 @@ fn search(grid: &Grid<usize>) -> usize {
         seen.insert(state, current.heat_loss);
 
         if current.pos == goal {
+            if current.steps_without_turn < min_steps {
+                info!("Ignoring solution because it has not traveled {} steps before reaching the end.", min_steps);
+                continue;
+            }
+
             return current.heat_loss + grid.get(goal.0, goal.1);
         }
 
-        let children = current.children(grid);
+        let children = current.children(grid, min_steps, max_steps);
         for child in children.into_iter() {
             heap.push(Reverse(child));
         }
