@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
+use log::info;
 use regex::Regex;
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 fn part1(lines: &[String]) -> String {
     let mut line_iter = lines.into_iter();
@@ -13,6 +14,15 @@ fn part1(lines: &[String]) -> String {
         .filter(|p| inspect(&rules, p))
         .map(|p| p.values().sum::<i32>())
         .sum();
+
+    format!("{}", total)
+}
+
+fn part2(lines: &[String]) -> String {
+    let mut line_iter = lines.into_iter();
+    let rules = parse_rules(&mut line_iter);
+
+    let total = count_possibilities(&rules);
 
     format!("{}", total)
 }
@@ -68,6 +78,7 @@ impl Rule {
 
 type RuleMap = HashMap<String, Vec<Rule>>;
 type Part = HashMap<String, i32>;
+type PartRange = HashMap<String, std::ops::Range<i32>>;
 
 fn parse_rules<'a, T>(lines: &mut T) -> RuleMap
 where
@@ -129,4 +140,66 @@ fn inspect(rules: &RuleMap, part: &Part) -> bool {
             x => name = x,
         };
     }
+}
+
+fn count_possibilities(rules: &RuleMap) -> usize {
+    let mut all = PartRange::new();
+    all.insert("x".to_string(), 1..4001);
+    all.insert("m".to_string(), 1..4001);
+    all.insert("a".to_string(), 1..4001);
+    all.insert("s".to_string(), 1..4001);
+
+    let mut to_check: Vec<_> = Vec::new();
+    to_check.push(("in", all.clone()));
+
+    let mut total = 0;
+
+    while !to_check.is_empty() {
+        let (name, mut pr) = to_check.pop().unwrap();
+
+        if name == "R" {
+            continue;
+        }
+
+        if name == "A" {
+            info!("Accepted {:?}", pr);
+
+            total += pr
+                .values()
+                .map(|v| v.clone().count() as usize)
+                .product::<usize>();
+            continue;
+        }
+
+        let rule = rules.get(name).unwrap();
+
+        for r in rule {
+            // Default rule, move everything
+            if r.op.is_empty() {
+                to_check.push((&r.target, pr.clone()));
+                continue;
+            }
+
+            let prop_range = pr.get(&r.property).unwrap();
+            if !prop_range.contains(&r.value) {
+                continue;
+            }
+
+            if r.op == "<" {
+                let mut new_parts = pr.clone();
+                *new_parts.get_mut(&r.property).unwrap() = prop_range.start..r.value;
+                to_check.push((&r.target, new_parts));
+
+                *pr.get_mut(&r.property).unwrap() = r.value..prop_range.end;
+            } else {
+                let mut new_parts = pr.clone();
+                *new_parts.get_mut(&r.property).unwrap() = r.value + 1..prop_range.end;
+                to_check.push((&r.target, new_parts));
+
+                *pr.get_mut(&r.property).unwrap() = prop_range.start..r.value + 1;
+            }
+        }
+    }
+
+    total
 }
