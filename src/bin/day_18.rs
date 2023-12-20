@@ -1,118 +1,110 @@
 use log::info;
 use regex::Regex;
-use std::{collections::HashMap, iter::repeat};
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct Position(i32, i32);
-
-type ColorMap = HashMap<Position, String>;
-type TrenchGrid = Vec<Vec<char>>;
+#[derive(Debug)]
+struct Point(i64, i64);
+type LinePath = Vec<Point>;
 
 fn part1(lines: &[String]) -> String {
-    let path = parse_path(lines);
-    info!("Path length is {}", path.len());
-    let mut grid = to_grid(&path);
-    fill(&mut grid);
+    let (path, length) = parse_path(lines);
+    let area = calculate_area(&path);
 
-    let total = count_dug(&grid);
-
+    // Enclosed area + path area + 1 for origin.
+    let total = area + (length / 2) + 1;
     format!("{}", total)
 }
 
-fn parse_path(lines: &[String]) -> ColorMap {
-    let re_path = Regex::new(r"([RDLU]) (\d+) \((#\w{6})\)").unwrap();
+fn part2(lines: &[String]) -> String {
+    let (path, length) = parse_path_hex(lines);
+    let area = calculate_area(&path);
 
-    let mut result = ColorMap::new();
+    // Enclosed area + path area + 1 for origin.
+    let total = area + (length / 2) + 1;
+    format!("{}", total)
+}
 
-    let mut row = 0;
-    let mut col = 0;
+fn parse_path(lines: &[String]) -> (LinePath, i64) {
+    let re_path = Regex::new(r"([RDLU]) (\d+)").unwrap();
+
+    let mut result = LinePath::new();
+    result.push(Point(0, 0));
+
+    let mut overall_len = 0;
 
     for line in lines {
         for c in re_path.captures_iter(line) {
+            let previous = result.last().unwrap();
+
             let dir = c.get(1).unwrap().as_str();
-            let count = c.get(2).unwrap().as_str().parse::<i32>().unwrap();
-            let value = c.get(3).unwrap().as_str();
+            let count = c.get(2).unwrap().as_str().parse::<i64>().unwrap();
+            overall_len += count;
 
-            for _ in 1..=count {
-                match dir {
-                    "R" => col += 1,
-                    "L" => col -= 1,
-                    "U" => row -= 1,
-                    "D" => row += 1,
-                    _ => panic!("Unexpected direction {}", dir),
-                };
+            let next_point = match dir {
+                "R" => Point(previous.0 + count, previous.1),
+                "D" => Point(previous.0, previous.1 - count),
+                "L" => Point(previous.0 - count, previous.1),
+                "U" => Point(previous.0, previous.1 + count),
+                _ => panic!("Unexpected direction {}", dir),
+            };
 
-                result.insert(Position(row, col), String::from(value));
-            }
+            result.push(next_point);
         }
     }
 
-    result
+    info!("Overall length {}", overall_len);
+
+    (result, overall_len)
 }
 
-fn to_grid(path: &ColorMap) -> TrenchGrid {
-    let min_row = path.keys().map(|k| k.0).min().unwrap();
-    let max_row = path.keys().map(|k| k.0).max().unwrap();
-    let min_col = path.keys().map(|k| k.1).min().unwrap();
-    let max_col = path.keys().map(|k| k.1).max().unwrap();
+fn parse_path_hex(lines: &[String]) -> (LinePath, i64) {
+    let re_path = Regex::new(r"#(\w{5})(\d)").unwrap();
 
-    let row_range = max_row + 1 - min_row;
-    let col_range = max_col + 1 - min_col;
+    let mut result = LinePath::new();
+    result.push(Point(0, 0));
 
-    let mut result: TrenchGrid = (0..row_range)
-        .map(|_| repeat('.').take(col_range as usize).collect())
-        .collect();
+    let mut overall_len = 0;
 
-    for k in path.keys() {
-        let row_pos = k.0 - min_row;
-        let col_pos = k.1 - min_col;
+    for line in lines {
+        for c in re_path.captures_iter(line) {
+            let previous = result.last().unwrap();
 
-        result[row_pos as usize][col_pos as usize] = '#'
-    }
+            let dir = c.get(2).unwrap().as_str();
+            let count = i64::from_str_radix(c.get(1).unwrap().as_str(), 16).unwrap();
+            overall_len += count;
 
-    result
-}
+            let next_point = match dir {
+                "0" => Point(previous.0 + count, previous.1),
+                "1" => Point(previous.0, previous.1 - count),
+                "2" => Point(previous.0 - count, previous.1),
+                "3" => Point(previous.0, previous.1 + count),
+                _ => panic!("Unexpected direction {}", dir),
+            };
 
-fn fill(grid: &mut TrenchGrid) {
-    let mut to_visit: Vec<(usize, usize)> = Vec::new();
-
-    for i in 0..grid.len() {
-        to_visit.push((i, 0));
-        to_visit.push((i, grid[0].len() - 1));
-    }
-
-    for j in 0..grid[0].len() {
-        to_visit.push((0, j));
-        to_visit.push((grid.len() - 1, j));
-    }
-
-    while !to_visit.is_empty() {
-        let (row, col) = to_visit.pop().unwrap();
-
-        if row >= grid.len() || col >= grid[0].len() {
-            continue;
-        }
-
-        if grid[row][col] == '.' {
-            grid[row][col] = 'O';
-
-            if row > 0 {
-                to_visit.push((row - 1, col));
-            }
-            if col > 0 {
-                to_visit.push((row, col - 1));
-            }
-            to_visit.push((row + 1, col));
-
-            to_visit.push((row, col + 1));
+            result.push(next_point);
         }
     }
+
+    info!("Overall length {}", overall_len);
+
+    (result, overall_len)
 }
 
-fn count_dug(grid: &TrenchGrid) -> usize {
-    grid.iter()
-        .flat_map(|row| row.iter().filter(|c| **c != 'O'))
-        .count()
+/*
+ * Calculate area using the shoelace formula
+ *
+ * https://en.wikipedia.org/wiki/Shoelace_formula
+ */
+fn calculate_area(path: &LinePath) -> i64 {
+    let mut total = 0;
+    // Origin is duplicated in first and last position
+    for i in 0..path.len() - 1 {
+        let current = &path[i];
+        let next = &path[i + 1];
+
+        total += (current.1 + next.1) * (current.0 - next.0)
+    }
+
+    (total / 2).abs()
 }
