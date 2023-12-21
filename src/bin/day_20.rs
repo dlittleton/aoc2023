@@ -5,7 +5,7 @@ use std::{
 
 use log::{debug, info};
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 fn part1(lines: &[String]) -> String {
     let mut modules: HashMap<_, _> = lines
@@ -18,6 +18,23 @@ fn part1(lines: &[String]) -> String {
     let (low, high) = press(&mut modules, 1000);
     info!("Low {}, High {}", low, high);
     let total = low * high;
+    format!("{}", total)
+}
+
+fn part2(lines: &[String]) -> String {
+    let mut modules: HashMap<_, _> = lines
+        .iter()
+        .map(Module::parse)
+        .map(|m| (m.name, m))
+        .collect();
+
+    initialize_inputs(&mut modules);
+
+    // Not fully solved in code. Target RX is the output of a conjunction module
+    // with multiple cyclical inputs. Used this search implementation to find
+    // the cycle lengths of each of those individually and manually multiplied
+    // the result.
+    let total = press_until_rx(&mut modules);
     format!("{}", total)
 }
 
@@ -187,4 +204,50 @@ fn press(modules: &mut HashMap<&str, Module>, count: usize) -> (usize, usize) {
     }
 
     (low, high)
+}
+
+fn press_until_rx(modules: &mut HashMap<&str, Module>) -> usize {
+    let mut signals: VecDeque<_> = VecDeque::new();
+
+    let mut presses: usize = 0;
+    let mut count = 0;
+    loop {
+        presses += 1;
+        signals.push_back(Pulse {
+            source: "button",
+            destination: "broadcaster",
+            kind: PulseKind::Low,
+        });
+
+        if presses % 1000000 == 0 {
+            info!("Pressed {}", presses);
+        }
+
+        while !signals.is_empty() {
+            let current = signals.pop_front().unwrap();
+            debug!("{}", current);
+
+            if current.destination == "rx" && current.kind == PulseKind::Low {
+                return presses;
+            }
+
+            if current.source == "zk"
+                && current.destination == "hj"
+                && current.kind == PulseKind::High
+            {
+                info!("Input {} high during press {}", current.source, presses);
+                count += 1;
+                if count >= 10 {
+                    return presses;
+                }
+            }
+
+            if let Some(result) = modules
+                .get_mut(current.destination)
+                .and_then(|m| m.apply(&current))
+            {
+                signals.extend(result);
+            }
+        }
+    }
 }
