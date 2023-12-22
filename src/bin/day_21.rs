@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 
 use aoc2023::collections::grid::Grid;
-use log::info;
+use log::{debug, info};
 
 aoc2023::solver!(part1, part2);
 
@@ -49,7 +49,7 @@ impl<'a> Path<'a> {
 
             self.seen.insert(current);
 
-            if depth % 2 == 0 {
+            if depth % 2 == self.goal_depth % 2 {
                 count += 1;
             }
 
@@ -64,7 +64,7 @@ impl<'a> Path<'a> {
             to_visit.push_back((Point(current.0, current.1 + 1), d));
         }
 
-        info!("Estimate says {}", count);
+        debug!("Estimate says {}", count);
         count
     }
 
@@ -84,8 +84,43 @@ fn part1(lines: &[String]) -> String {
 
 fn part2(lines: &[String]) -> String {
     let garden: Garden = lines.iter().map(|line| line.chars()).collect();
-    let reachable = walk(&garden, 5000);
-    format!("{}", reachable)
+    let start_pos = find_start(&garden);
+    info!("Start is {:?}", start_pos);
+    info!("Grid size is {} x {}", garden.rows(), garden.cols());
+
+    // Had to look up a hint on this one. The total number of steps required
+    // exactly lines up with a grid boundary. Because the grid is fairly open,
+    // it works out that the number of available paths is quadratic.
+    //
+    // Solve the first few grid iterations to be able to calculate later values.
+    // Goal step count of 26501365 steps is 202300 iterations
+    let mut results: Vec<_> = Vec::new();
+
+    for i in 0..7 {
+        let steps = start_pos.0 + (garden.rows() * i);
+        let paths = walk(&garden, steps);
+        info!("{} : {}", i, paths);
+
+        results.push(paths);
+    }
+
+    let diff = (results[2] - results[1]) - (results[1] - results[0]);
+    info!("Diff is {}", diff);
+
+    // Check
+    let diff2 = (results[3] - results[2]) - (results[2] - results[1]);
+    if diff != diff2 {
+        panic!("Quadratic assumption did not hold");
+    }
+
+    let mut total = results[1];
+    let mut last_diff = results[1] - results[0];
+    for _ in 2..=202300 {
+        last_diff += diff;
+        total += last_diff;
+    }
+
+    format!("{}", total)
 }
 
 fn find_start(garden: &Garden) -> Point {
