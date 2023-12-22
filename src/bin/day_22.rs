@@ -3,12 +3,12 @@ use std::collections::HashSet;
 use aoc2023::util::get_all_numbers;
 use log::{debug, info};
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct Point(i32, i32, i32);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct Brick {
     start: Point,
     end: Point,
@@ -58,16 +58,26 @@ fn part1(lines: &[String]) -> String {
     format!("{}", removable)
 }
 
-fn settle(bricks: &mut [Brick]) {
+fn part2(lines: &[String]) -> String {
+    let mut bricks: Vec<_> = lines.iter().map(Brick::parse).collect();
+    settle(&mut bricks);
+
+    let will_fall = find_chain(&bricks);
+    format!("{}", will_fall)
+}
+
+fn settle(bricks: &mut [Brick]) -> usize {
+    let mut fell: Vec<_> = bricks.iter().map(|_| false).collect();
+
     let mut to_settle: HashSet<_> = bricks.iter().enumerate().map(|(i, _)| i).collect();
 
     while !to_settle.is_empty() {
         let remaining: Vec<_> = to_settle.iter().map(|i| *i).collect();
         for i in remaining {
-            info!("Looking at brick {}", i);
+            debug!("Looking at brick {}", i);
             // Ground
             if bricks[i].start.2 == 1 {
-                info!("Brick at {} is touching the ground.", i);
+                debug!("Brick at {} is touching the ground.", i);
                 to_settle.remove(&i);
                 continue;
             }
@@ -79,15 +89,20 @@ fn settle(bricks: &mut [Brick]) {
             {
                 debug!("Found overlap with {} on {}", i, support.0);
                 if !to_settle.contains(&support.0) {
-                    info!("Brick {} is resting on brick {}", i, support.0);
+                    debug!("Brick {} is resting on brick {}", i, support.0);
                     to_settle.remove(&i);
                 }
             } else {
                 debug!("Moving brick {} down.", i);
+                fell[i] = true;
                 bricks[i].fall();
             }
         }
     }
+
+    let total = fell.iter().filter(|b| **b).count();
+    info!("A total of {} bricks fell.", total);
+    total
 }
 
 fn find_removable(bricks: &[Brick]) -> usize {
@@ -110,4 +125,18 @@ fn find_removable(bricks: &[Brick]) -> usize {
     }
 
     return removable.len();
+}
+
+fn find_chain(bricks: &Vec<Brick>) -> usize {
+    let mut total = 0;
+
+    for i in 0..bricks.len() {
+        info!("Removing brick {}", i);
+        let mut copied = bricks.to_owned();
+        copied.remove(i);
+
+        total += settle(&mut copied);
+    }
+
+    total
 }
