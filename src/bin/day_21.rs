@@ -1,79 +1,90 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 use aoc2023::collections::grid::Grid;
+use log::info;
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct Point(usize, usize);
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct State(Point, usize);
-
 type Garden = Grid<char>;
 
 struct Path<'a> {
-    seen: HashSet<State>,
-    goals: HashSet<Point>,
+    seen: HashSet<Point>,
     goal_depth: usize,
     garden: &'a Garden,
+    rows: usize,
+    cols: usize,
 }
 
 impl<'a> Path<'a> {
     fn new(garden: &'a Garden, goal_depth: usize) -> Self {
         let seen = HashSet::new();
-        let goals = HashSet::new();
+
+        let rows = garden.rows();
+        let cols = garden.cols();
 
         Path {
             seen,
-            goals,
             goal_depth,
             garden,
+            rows,
+            cols,
         }
     }
 
-    fn visit(&mut self, current: Point, depth: usize) {
-        let state = State(current, depth);
+    fn visit(&mut self, start: Point, start_depth: usize) -> usize {
+        let mut to_visit: VecDeque<_> = VecDeque::new();
+        to_visit.push_back((start, start_depth));
 
-        if !self.is_passable(&current) || self.seen.contains(&state) {
-            return;
+        let mut count = 0;
+
+        while !to_visit.is_empty() {
+            let (current, depth) = to_visit.pop_front().unwrap();
+
+            if !self.is_passable(&current) || self.seen.contains(&current) {
+                continue;
+            }
+
+            self.seen.insert(current);
+
+            if depth % 2 == 0 {
+                count += 1;
+            }
+
+            if depth == self.goal_depth {
+                continue;
+            }
+
+            let d = depth + 1;
+            to_visit.push_back((Point(current.0 - 1, current.1), d));
+            to_visit.push_back((Point(current.0 + 1, current.1), d));
+            to_visit.push_back((Point(current.0, current.1 - 1), d));
+            to_visit.push_back((Point(current.0, current.1 + 1), d));
         }
 
-        self.seen.insert(state);
-
-        if depth == self.goal_depth {
-            self.goals.insert(current);
-            return;
-        }
-
-        let d = depth + 1;
-        // Up
-        if current.0 > 0 {
-            self.visit(Point(current.0 - 1, current.1), d);
-        }
-
-        // Left
-        if current.1 > 0 {
-            self.visit(Point(current.0, current.1 - 1), d);
-        }
-
-        // Down
-        self.visit(Point(current.0 + 1, current.1), d);
-
-        // Right
-        self.visit(Point(current.0, current.1 + 1), d);
+        info!("Estimate says {}", count);
+        count
     }
 
     fn is_passable(&self, current: &Point) -> bool {
-        return current.0 < self.garden.rows()
-            && current.1 < self.garden.cols()
-            && *self.garden.get(current.0, current.1) != '#';
+        return *self
+            .garden
+            .get(current.0 % self.rows, current.1 % self.cols)
+            != '#';
     }
 }
 
 fn part1(lines: &[String]) -> String {
     let garden: Garden = lines.iter().map(|line| line.chars()).collect();
     let reachable = walk(&garden, 64);
+    format!("{}", reachable)
+}
+
+fn part2(lines: &[String]) -> String {
+    let garden: Garden = lines.iter().map(|line| line.chars()).collect();
+    let reachable = walk(&garden, 5000);
     format!("{}", reachable)
 }
 
@@ -90,8 +101,12 @@ fn find_start(garden: &Garden) -> Point {
 fn walk(garden: &Garden, steps: usize) -> usize {
     let start = find_start(garden);
 
-    let mut path = Path::new(garden, steps);
-    path.visit(start, 0);
+    // Offset start to avoid overflow.
+    let offset = Point(
+        start.0 + (garden.rows() * steps),
+        start.1 + (garden.cols() * steps),
+    );
 
-    return path.goals.len();
+    let mut path = Path::new(garden, steps);
+    path.visit(offset, 0)
 }
