@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use aoc2023::collections::grid::Grid;
 use log::{debug, info};
 
-aoc2023::solver!(part1);
+aoc2023::solver!(part1, part2);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 struct Point(usize, usize);
@@ -60,6 +60,25 @@ impl Maze {
 
 fn part1(lines: &[String]) -> String {
     let maze = Maze::new(lines.iter().map(|line| line.chars()).collect());
+
+    let start = get_open_position(&maze, 0);
+    let end = get_open_position(&maze, maze.grid.rows() - 1);
+
+    info!("Start position is {:?}", start);
+    info!("End position is {:?}", end);
+
+    let longest = search(&maze, &start, &end);
+
+    format!("{}", longest)
+}
+
+fn part2(lines: &[String]) -> String {
+    let mut maze = Maze::new(lines.iter().map(|line| line.chars()).collect());
+
+    maze.grid.enumerate_mut().for_each(|(_, _, v)| match v {
+        'v' | '<' | '>' | '^' => *v = '.',
+        _ => (),
+    });
 
     let start = get_open_position(&maze, 0);
     let end = get_open_position(&maze, maze.grid.rows() - 1);
