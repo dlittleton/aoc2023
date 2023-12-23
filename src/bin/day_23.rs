@@ -94,49 +94,69 @@ fn part2(lines: &[String]) -> String {
 fn search(maze: &Maze, start: &Point, end: &Point) -> usize {
     let mut seen: HashSet<Point> = HashSet::new();
 
-    visit(maze, start, end, 0, &mut seen)
+    visit(maze, start, end, &mut seen)
 }
 
-fn visit(
-    maze: &Maze,
-    current: &Point,
-    end: &Point,
-    steps: usize,
-    seen: &mut HashSet<Point>,
-) -> usize {
-    debug!("Visiting {:?}", current);
-    if seen.contains(current) || *maze.grid.get(current.0, current.1) == '#' {
-        debug!("Dead end");
-        return 0;
+enum CommandType {
+    Enter,
+    Visit,
+    Exit,
+}
+
+fn visit(maze: &Maze, start: &Point, end: &Point, seen: &mut HashSet<Point>) -> usize {
+    let mut to_visit: Vec<_> = Vec::new();
+    to_visit.push((CommandType::Visit, *start, 0));
+
+    let mut best = 0;
+    let mut loops: usize = 0;
+
+    while !to_visit.is_empty() {
+        loops += 1;
+
+        if loops % 100000000 == 0 {
+            info!("Ran {} iterations.", loops);
+        }
+
+        let (cmd, current, steps) = to_visit.pop().unwrap();
+
+        match cmd {
+            CommandType::Enter => {
+                seen.insert(current);
+            }
+            CommandType::Visit => {
+                debug!("Visiting {:?}", current);
+                if seen.contains(&current) || *maze.grid.get(current.0, current.1) == '#' {
+                    debug!("Dead end");
+                    continue;
+                }
+
+                if current == *end {
+                    debug!("Found a goal of length {}", steps);
+                    best = best.max(steps);
+                    continue;
+                }
+
+                to_visit.push((CommandType::Exit, current, steps + 1));
+
+                let paths = vec![
+                    maze.left(&current),
+                    maze.right(&current),
+                    maze.up(&current),
+                    maze.down(&current),
+                ];
+                debug!("Children {:?}", paths);
+
+                to_visit.extend(paths.iter().filter_map(|p| {
+                    p.and_then(|child| Some((CommandType::Visit, child, steps + 1)))
+                }));
+
+                to_visit.push((CommandType::Enter, current, steps + 1));
+            }
+            CommandType::Exit => {
+                seen.remove(&current);
+            }
+        }
     }
-
-    if current == end {
-        info!("Found a goal of length {}", steps);
-        return steps;
-    }
-
-    let paths = vec![
-        maze.left(current),
-        maze.right(current),
-        maze.up(current),
-        maze.down(current),
-    ];
-    debug!("Children {:?}", paths);
-
-    seen.insert(*current);
-
-    let best = paths
-        .iter()
-        .map(|point| {
-            point
-                .as_ref()
-                .and_then(|p| Some(visit(maze, &p, end, steps + 1, seen)))
-        })
-        .map(|s| s.unwrap_or(0))
-        .max()
-        .unwrap();
-
-    seen.remove(current);
 
     return best;
 }
