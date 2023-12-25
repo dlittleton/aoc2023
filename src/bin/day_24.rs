@@ -2,9 +2,12 @@ use std::fmt::Display;
 
 use aoc2023::util::get_all_numbers;
 use core::ops::RangeInclusive;
-use log::{debug, info};
+use log::info;
+use num::{bigint::ToBigInt, BigInt};
 
-aoc2023::solver!(part1);
+use vector3d::Vector3d;
+
+aoc2023::solver!(part1, part2);
 
 #[derive(Debug)]
 struct Line {
@@ -97,6 +100,27 @@ impl Path {
         info!("No intersection.");
         return false;
     }
+
+    fn to_stone(&self) -> Stone {
+        let p = Vector3d::new(
+            self.x.position.to_bigint().unwrap(),
+            self.y.position.to_bigint().unwrap(),
+            self.z.position.to_bigint().unwrap(),
+        );
+
+        let v = Vector3d::new(
+            self.x.velocity.to_bigint().unwrap(),
+            self.y.velocity.to_bigint().unwrap(),
+            self.z.velocity.to_bigint().unwrap(),
+        );
+
+        return Stone { p, v };
+    }
+}
+
+struct Stone {
+    p: Vector3d<BigInt>,
+    v: Vector3d<BigInt>,
 }
 
 fn find_intersection(a1: &Line, b1: &Line, a2: &Line, b2: &Line) -> Option<f64> {
@@ -135,4 +159,60 @@ fn part1(lines: &[String]) -> String {
     }
 
     format!("{}", count)
+}
+
+/*
+ * Needed a hint for this one.
+ *
+ * Implementation inspired by:
+ * https://old.reddit.com/r/adventofcode/comments/18qexvu/2023_day_24_part_2_3d_vector_interpretation_and/
+ */
+fn part2(lines: &[String]) -> String {
+    let stones: Vec<_> = lines
+        .iter()
+        .map(Path::parse)
+        .map(|p| p.to_stone())
+        .collect();
+
+    let p0 = stones[0].p.clone();
+    let v0 = stones[0].v.clone();
+
+    // Shift all stones into a reference frame based on stone 0. Stone 0 is now
+    // effectively stationary.
+    let shifted: Vec<_> = stones
+        .iter()
+        .map(|s| Stone {
+            p: s.p.clone() - p0.clone(),
+            v: s.v.clone() - v0.clone(),
+        })
+        .collect();
+
+    // Find normal line for stone 1.
+    let h1 = &shifted[1];
+    let h1_p0 = &h1.p;
+    let h1_p1 = h1.p.clone() + h1.v.clone();
+    let n = h1_p0.clone().cross(h1_p1);
+
+    // Find intersection time and position for stone 2
+    let h2 = &shifted[2];
+    let t_h2 = (shifted[0].p.clone() - h2.p.clone()).dot(n.clone()) / h2.v.clone().dot(n.clone());
+    let p_h2 = h2.p.clone() + (h2.v.clone() * t_h2.clone());
+
+    // Find intersection time and position for stone 3
+    let h3 = &shifted[3];
+    let t_h3 = (shifted[0].p.clone() - h3.p.clone()).dot(n.clone()) / h3.v.clone().dot(n);
+    let p_h3 = h3.p.clone() + (h3.v.clone() * t_h3.clone());
+
+    // Calculate velocity and position of rock in the shifted reference frame.
+    let velo = (p_h3 - p_h2.clone()) / (t_h3.clone() - t_h2.clone());
+    let position = p_h2.clone() - (velo.clone() * t_h2);
+    info!("Shifted velo {}, Shifted position {}", velo, position);
+
+    // Unshift
+    let real_position = position + stones[0].p.clone();
+    info!("Real position is {}", real_position);
+
+    let total = real_position.x + real_position.y + real_position.z;
+
+    format!("{}", total)
 }
