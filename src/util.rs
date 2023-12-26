@@ -42,9 +42,18 @@ pub fn combinations<T>(values: &[T]) -> impl Iterator<Item = (&T, &T)> {
         .flat_map(|(i, a)| values[(i + 1)..].iter().map(move |b| (a, b)))
 }
 
+pub fn combinations_3<T>(values: &[T]) -> impl Iterator<Item = (&T, &T, &T)> {
+    values[..].iter().enumerate().flat_map(move |(i, a)| {
+        values[(i + 1)..]
+            .iter()
+            .enumerate()
+            .flat_map(move |(j, b)| values[(i + j + 2)..].iter().map(move |c| (a, b, c)))
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::combinations;
+    use super::*;
 
     #[test]
     fn test_combinations_empty() {
@@ -66,5 +75,16 @@ mod tests {
         assert_eq!(combinations[3], (&'b', &'c'));
         assert_eq!(combinations[4], (&'b', &'d'));
         assert_eq!(combinations[5], (&'c', &'d'));
+    }
+
+    #[test]
+    fn test_combinations_3() {
+        let values: Vec<_> = "abcd".chars().collect();
+        let combinations: Vec<_> = combinations_3(&values).collect();
+        assert_eq!(combinations.len(), 4);
+        assert_eq!(combinations[0], (&'a', &'b', &'c'));
+        assert_eq!(combinations[1], (&'a', &'b', &'d'));
+        assert_eq!(combinations[2], (&'a', &'c', &'d'));
+        assert_eq!(combinations[3], (&'b', &'c', &'d'));
     }
 }
