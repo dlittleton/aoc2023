@@ -12,47 +12,42 @@ aoc2023::solver!(part1);
 struct Connection<'a>(&'a str, &'a str);
 
 #[derive(Debug)]
+struct Link {
+    node: usize,
+    connection: usize,
+}
+
+#[derive(Debug)]
 struct Graph<'a> {
-    nodes: HashMap<&'a str, HashSet<&'a str>>,
+    nodes: Vec<Vec<Link>>,
+    connections: Vec<Connection<'a>>,
 }
 
 impl<'a> Graph<'a> {
-    fn new() -> Self {
-        let nodes = HashMap::new();
+    fn new(connections: Vec<Connection<'a>>) -> Self {
+        let names: HashSet<_> = connections.iter().flat_map(|c| vec![c.0, c.1]).collect();
+        let node_map: HashMap<_, _> = names.iter().enumerate().map(|(i, n)| (n, i)).collect();
 
-        Self { nodes }
-    }
+        let mut nodes = Vec::with_capacity(node_map.len());
+        for _ in 0..node_map.len() {
+            nodes.push(Vec::new());
+        }
 
-    fn from_connections(connections: &[Connection<'a>]) -> Self {
-        let mut graph = Self::new();
+        connections.iter().enumerate().for_each(|(i, c)| {
+            let a = node_map.get(&c.0).unwrap();
+            let b = node_map.get(&c.1).unwrap();
 
-        connections.iter().for_each(|c| graph.add_connection(c));
+            nodes[*a].push(Link {
+                node: *b,
+                connection: i,
+            });
+            nodes[*b].push(Link {
+                node: *a,
+                connection: i,
+            });
+        });
 
-        graph
-    }
-
-    fn add_connection(&mut self, connection: &Connection<'a>) {
-        self.nodes
-            .entry(&connection.0)
-            .or_insert(HashSet::new())
-            .insert(connection.1);
-
-        self.nodes
-            .entry(&connection.1)
-            .or_insert(HashSet::new())
-            .insert(connection.0);
-    }
-
-    fn remove_connection(&mut self, connection: &Connection<'a>) {
-        self.nodes
-            .get_mut(connection.0)
-            .unwrap()
-            .remove(connection.1);
-
-        self.nodes
-            .get_mut(connection.1)
-            .unwrap()
-            .remove(connection.0);
+        Self { nodes, connections }
     }
 }
 
@@ -60,9 +55,9 @@ fn part1(lines: &[String]) -> String {
     let connections: Vec<_> = parse(lines).collect();
     info!("Connection count: {}", connections.len());
 
-    let mut graph = Graph::from_connections(&connections);
+    let graph = Graph::new(connections);
 
-    let (a, b) = try_partion(&connections, &mut graph);
+    let (a, b) = try_partion(&graph);
 
     let total = a * b;
 
@@ -77,19 +72,17 @@ fn parse(lines: &[String]) -> impl Iterator<Item = Connection> {
     })
 }
 
-fn try_partion<'a>(connections: &[Connection<'a>], graph: &mut Graph<'a>) -> (usize, usize) {
-    let all_nodes: Vec<_> = graph.nodes.keys().cloned().collect();
-
+fn try_partion<'a>(graph: &Graph<'a>) -> (usize, usize) {
     let start = SystemTime::now();
 
-    combinations_3(connections)
+    let connection_idx: Vec<_> = (0..graph.connections.len()).collect();
+
+    let result = combinations_3(&connection_idx)
         .enumerate()
         .find_map(|(i, (a, b, c))| {
-            graph.remove_connection(a);
-            graph.remove_connection(b);
-            graph.remove_connection(c);
+            let mut visited = vec![false; graph.nodes.len()];
 
-            let mut seen: HashSet<_> = HashSet::new();
+            let mut to_visit = vec![0];
 
             if i % 100000 == 0 {
                 let duration = SystemTime::now()
@@ -100,32 +93,32 @@ fn try_partion<'a>(connections: &[Connection<'a>], graph: &mut Graph<'a>) -> (us
                 info!("Iteration {}, {:.2} iterations per second", i, ips);
             }
 
-            let mut to_visit = vec![all_nodes[0]];
+            // Visit every node connected to the start node.
             while !to_visit.is_empty() {
                 let current = to_visit.pop().unwrap();
-                if !seen.contains(current) {
-                    seen.insert(current);
+                visited[current] = true;
 
-                    graph
-                        .nodes
-                        .get(current)
-                        .unwrap()
-                        .iter()
-                        .for_each(|n| to_visit.push(n));
-                }
+                graph.nodes[current].iter().for_each(|link| {
+                    if link.connection != *a
+                        && link.connection != *b
+                        && link.connection != *c
+                        && !visited[link.node]
+                    {
+                        to_visit.push(link.node);
+                    }
+                })
             }
 
-            if seen.len() != all_nodes.len() {
-                let s_count = seen.len();
-                let remaining = all_nodes.len().abs_diff(s_count);
-                info!("Multiple partitions of size {}, {}", s_count, remaining);
-                return Some((s_count, remaining));
+            let connected = visited.iter().filter(|&v| *v).count();
+            if connected != visited.len() {
+                let remaining = visited.len() - connected;
+                info!("Found two partitions {}, {}", connected, remaining);
+                return Some((connected, remaining));
             }
 
-            graph.add_connection(a);
-            graph.add_connection(b);
-            graph.add_connection(c);
             None
         })
-        .unwrap()
+        .unwrap();
+
+    return result;
 }
