@@ -6,6 +6,8 @@ use std::{
 use aoc2023::util::combinations_3;
 use log::info;
 
+use rayon::prelude::*;
+
 aoc2023::solver!(part1);
 
 #[derive(Debug)]
@@ -79,7 +81,8 @@ fn try_partion<'a>(graph: &Graph<'a>) -> (usize, usize) {
 
     let result = combinations_3(&connection_idx)
         .enumerate()
-        .find_map(|(i, (a, b, c))| {
+        .par_bridge()
+        .find_map_first(|(i, (a, b, c))| {
             let mut visited = vec![false; graph.nodes.len()];
 
             let mut to_visit = vec![0];
